@@ -1,0 +1,10 @@
+# Editor Config
+.idea
+.vscode
+
+# Local Include Intelligence File
+include/
+
+# Build file
+build/
+test/**/build/
