@@ -1,0 +1,16 @@
+syntax = "proto3";
+package yarpc;
+
+option cc_generic_services = true;
+
+message RequestMeta {
+    int64 sequence_id = 1;      // 用于唯一标识一个RPC请求,请求方有义务保证其唯一性
+    string service_name = 2;
+    string method_name = 3;
+}
+
+message ResponseMeta {
+    int64 sequence_id = 1;
+    int32 error_code = 2;
+    string error_text = 3;
+}

@@ -1,3 +1,6 @@
+#ifndef YARPC_CLIENT_HPP_
+#define YARPC_CLIENT_HPP_
+
 #include <algorithm>
 #include <iostream>
 #include <list>
@@ -12,6 +15,7 @@
 #include <boost/asio.hpp>
 #include <boost/asio/steady_timer.hpp>  
 #include "io_service_pool.hpp"
+#include "message_op.hpp"
 
 namespace yarpc{
 
@@ -43,13 +47,13 @@ public:
 
     ~session();
 
-    bool post_msg_queue(std::string&& msg);      // write 对端消息队列
+    bool post_msg_queue(std::shared_ptr<message_op> msg_op);      // write 对端消息队列
 
     void write();
 
     void read();
 
-    void start(std::string&& msg);
+    void start(std::shared_ptr<message_op> msg_op);
 
     void stop();
 
@@ -67,7 +71,7 @@ public:
 
     bool error() const;
 private:
-    void write_one_from_msg_queue(std::string&& msg);
+    void write_one_from_msg_queue(std::shared_ptr<message_op> msg_op);
     void write_until_handler(const boost::system::error_code& err, std::size_t bytes_transferred);
 
     boost::asio::io_service& io_service_;
@@ -76,7 +80,7 @@ private:
     std::unique_ptr<boost::asio::steady_timer> stop_timer_;
 
     std::mutex mq_mtx;
-    std::deque<std::string> msg_pending_q_;
+    std::deque<std::shared_ptr<message_op>> msg_writing_q_;
 
     std::size_t const block_size_;
     char* const buffer_;
@@ -116,7 +120,7 @@ public:
 
     void Stop();
 
-    bool post_message(char const* host, int port, std::string&& msg);
+    bool post_message(char const* host, int port, std::shared_ptr<message_op> msg_op);
 
     void wait();
 
@@ -140,3 +144,5 @@ private:
 };
 
 } // namespace 
+
+#endif

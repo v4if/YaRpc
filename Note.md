@@ -38,3 +38,16 @@ EchoService_Stub client
 NEVER start your second async_write before the first has completed 
 async_write 串流
 asio异步发送复杂的地方在于: 不能连续调用异步发送接口async_write，因为async_write内部是不断调用async_write_some，直到所有的数据发送完成为止。由于async_write调用之后就直接返回了，如果第一次调用async_write发送一个较大的包时，马上又再调用async_write发送一个很小的包时，有可能这时第一次的async_write还在循环调用async_write_some发送，而第二次的async_write要发送的数据很小，一下子就发出去了，这使得第一次发送的数据和第二次发送的数据交织在一起了，导致发送乱序的问题。解决这个问题的方法就是在第一次发送完成之后再发送第二次的数据。具体的做法是用一个发送缓冲区，在异步发送完成之后从缓冲区再取下一个数据包发送。
+
+网络模型选型  magic_str stream_buff用完了怎么办buff_pool
+接收缓冲区的设计 asio::streambuf 每次prepare调用reserve都需要对内存做一次调整，将没有读取的内容移动到缓冲区头部 buffer_delta=128
+对象所有权的问题
+发送完成是需要回调done的，是将done传递过去，还是封装message，自动调用callback
+
+
+编译器的唯一命名规则，就是inline函数,class和模板类函数被多次包含的情况下，在编译的时候，编译器会自动把他们认为是同一个函数，不会发生二次定义的问题。前提是他们一模一样。
+
+
+streambuf is not shrink
+
+循环引用  -> 前置声明

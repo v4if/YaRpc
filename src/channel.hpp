@@ -1,25 +1,29 @@
-#ifndef yarpc_channel_hpp_
-#define yarpc_channel_hpp_
+#ifndef YARPC_CHANNEL_HPP_
+#define YARPC_CHANNEL_HPP_
 
 #include <google/protobuf/service.h>
 #include <google/protobuf/descriptor.h>
 #include <string>
 #include "client.hpp"
 
+typedef google::protobuf::MethodDescriptor gMethodDescriptor;
+typedef google::protobuf::RpcController gController;
+typedef google::protobuf::Message gMessage;
+typedef google::protobuf::Closure gClosure;
+
 namespace yarpc {
 
-using google::protobuf::Message;
-using google::protobuf::Closure;
 class Channel : public google::protobuf::RpcChannel {
 public:
-    Channel(Client *clt, char const* host, char const* port);
+    Channel(Client* clt, char const* host, int const port);
     virtual ~Channel(); 
-    virtual void CallMethod(const google::protobuf::MethodDescriptor *method, google::protobuf::RpcController *controller, 
-        const Message *request,Message *response, Closure *done);
+    virtual void CallMethod(const gMethodDescriptor *method, gController *controller, 
+        const gMessage *request, gMessage *response, gClosure *done);
 
 private:
     Client* client_;
-    
+    char const* host_;
+    int const port_;
 };
 
 } // namespace yarpc

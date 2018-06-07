@@ -1,6 +1,8 @@
 #include <boost/asio.hpp>
 #include <iostream>
-int main() {
+#include <sstream>
+
+void ep_test() {
     char const* host = "127.0.0.1";
     int port = 80;
     auto endpoint = boost::asio::ip::tcp::endpoint(
@@ -8,7 +10,9 @@ int main() {
 
     std::cout  << endpoint.address().to_string() << ":" << endpoint.port() << std::endl;
     std::cout << (endpoint.address().to_string() == std::string(host)) << std::endl;
+}
 
+void shared_ptr_test() {
     std::shared_ptr<int> sp;
     if (!sp) {
         std::cout << "nullptr" << std::endl;
@@ -29,4 +33,26 @@ int main() {
     func();
     std::cout << sp1.use_count() << std::endl;
     std::cout << sp.use_count() << std::endl;
+}
+
+void stdbind_test() {
+    class T {
+    public: 
+        void test(T* t, int data) {
+            t->add(data);
+            std::cout << data << std::endl;
+        }
+
+        void add(int& data) {
+            data += 1;
+        }
+    };
+
+    T t;
+    std::function<void(int)> func = std::bind(&T::test, &t, &t, std::placeholders::_1);
+    func(1);
+}
+
+int main() {
+    stdbind_test();
 }

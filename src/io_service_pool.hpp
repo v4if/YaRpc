@@ -1,5 +1,5 @@
-#ifndef yarpc_io_service_poll_hpp_
-#define yarpc_io_service_poll_hpp_
+#ifndef YARPC_IO_SERVICE_POOL_HPP_
+#define YARPC_IO_SERVICE_POOL_HPP_
 
 #include <boost/asio.hpp>
 #include "noncopyable.hpp"

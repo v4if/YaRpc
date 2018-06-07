@@ -1,5 +1,5 @@
-#ifndef noncopyable_hpp_
-#define noncopyable_hpp_
+#ifndef YARPC_NONCOPYABLE_HPP_
+#define YARPC_NONCOPYABLE_HPP_
 
 struct noncopyable {
 protected:

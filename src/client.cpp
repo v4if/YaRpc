@@ -47,22 +47,22 @@ session::~session() {
     delete[] buffer_;
 }
 
-bool session::post_msg_queue(std::string&& msg) {
-    std::cout << "submit msg [ " << msg << " ]\n";
-    io_service_.post([this, ownship_msg = std::move(msg)]() mutable {
-        write_one_from_msg_queue(std::move(ownship_msg));
+bool session::post_msg_queue(std::shared_ptr<message_op> msg_op) {
+    std::cout << "submit msg [ " << msg_op->message << " ]\n";
+    io_service_.post([this, msg_op]() mutable {
+        write_one_from_msg_queue(msg_op);
     });
     return true;
 }
 
-void session::write_one_from_msg_queue(std::string&& msg) {
-    std::cout << "has post msg [ " << msg << " ] to msg_pending_q_\n";
+void session::write_one_from_msg_queue(std::shared_ptr<message_op> msg_op) {
+    std::cout << "has post msg [ " << msg_op->message << " ] to msg_pending_q_\n";
     std::lock_guard<std::mutex> _(mq_mtx);
-    bool in_progress = !msg_pending_q_.empty();
-    msg_pending_q_.push_back(std::move(msg));
+    bool in_progress = !msg_writing_q_.empty();
+    msg_writing_q_.push_back(std::move(msg_op));
     
     if (is_connected_ && !in_progress) {
-        boost::asio::async_write(socket_, boost::asio::buffer(msg_pending_q_.front(), msg_pending_q_.front().size()),
+        boost::asio::async_write(socket_, boost::asio::buffer(msg_writing_q_.front()->message, msg_writing_q_.front()->message.size()),
             [this](const boost::system::error_code& err, std::size_t bytes_transferred) {
             write_until_handler(err, bytes_transferred);
         });
@@ -76,12 +76,12 @@ void session::write_until_handler(const boost::system::error_code& err, std::siz
         bytes_written_ += bytes_transferred;
         ++count_written_;
 
-        std::string old_msg = msg_pending_q_.front();
-        std::cout << "has write msg [ " << old_msg << " ] to remote side\n";
+        std::shared_ptr<message_op> old_msg_op = msg_writing_q_.front();
+        std::cout << "has write msg [ " << old_msg_op->message << " ] to remote side\n";
 
-        msg_pending_q_.pop_front();
-        if (is_connected_ && !msg_pending_q_.empty()) {
-            boost::asio::async_write(socket_, boost::asio::buffer(msg_pending_q_.front(), msg_pending_q_.front().size()),
+        msg_writing_q_.pop_front();
+        if (is_connected_ && !msg_writing_q_.empty()) {
+            boost::asio::async_write(socket_, boost::asio::buffer(msg_writing_q_.front()->message, msg_writing_q_.front()->message.size()),
                 [this](const boost::system::error_code& err, std::size_t bytes_transferred) {
                 write_until_handler(err, bytes_transferred);
             });
@@ -131,15 +131,15 @@ void session::read() {
     });
 }
 
-void session::start(std::string&& msg) {
-    socket_.async_connect(endpoint_, [this, ownship_msg = std::move(msg)](const boost::system::error_code& err) mutable {
+void session::start(std::shared_ptr<message_op> msg_op) {
+    socket_.async_connect(endpoint_, [this, msg_op](const boost::system::error_code& err) mutable {
         if (!err)
         {
             boost::asio::ip::tcp::no_delay no_delay(true);
             socket_.set_option(no_delay);
 
             is_connected_ = true;
-            post_msg_queue(std::move(ownship_msg));
+            post_msg_queue(msg_op);
             // write();
 
             read();
@@ -193,7 +193,7 @@ Client::Client(const ClientOptions options) :
     io_service_(new boost::asio::io_service),
     io_work_(new boost::asio::io_service::work(*io_service_)),
     resolver_(new boost::asio::ip::tcp::resolver(*io_service_)),
-    stats_(options.uptime),
+    stats_(options.uptime == -1 ? 1 : options.uptime),
     stop_timer_(new boost::asio::steady_timer(*io_service_)),
     is_running_(false) {}
 
@@ -237,7 +237,7 @@ void Client::Stop() {
     io_work_.reset();
 }
 
-bool Client::post_message(char const* host, int port, std::string&& msg) {
+bool Client::post_message(char const* host, int port, std::shared_ptr<message_op> msg_op) {
     std::shared_ptr<client_internal::session> ss;
     if (!sessions_.empty()) {
         for (auto& session : sessions_) {
@@ -249,7 +249,7 @@ bool Client::post_message(char const* host, int port, std::string&& msg) {
     } 
 
     if (ss) {
-        ss->post_msg_queue(std::move(msg));
+        ss->post_msg_queue(msg_op);
         return true;
     } else {
         boost::asio::ip::tcp::resolver::iterator iter =
@@ -276,7 +276,7 @@ bool Client::post_message(char const* host, int port, std::string&& msg) {
                 }
             });
         }
-        new_session->start(std::move(msg));
+        new_session->start(msg_op);
         return true;
     }
 
