@@ -51,3 +51,9 @@ asio异步发送复杂的地方在于: 不能连续调用异步发送接口async
 streambuf is not shrink
 
 循环引用  -> 前置声明
+
+代码统计 cloc ./ --exclude-dir=include
+
+一个.c是一个编译单元，头文件要被包含进.c文件里，尽量在.c文件里面include，避免重复包含和循环包含
+
+80 120 限制 一行代码宽度不要超过120

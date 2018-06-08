@@ -30,6 +30,7 @@ private:
         //         SLOG(INFO, "Header[\"%s\"]=\"%s\"", it->first.c_str(), it->second.c_str());
         //     }
         // }
+        std::cout << request->message() << std::endl;
         response->set_message("echo message: " + request->message());
         done->Run();
     }

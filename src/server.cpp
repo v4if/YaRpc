@@ -5,7 +5,9 @@ namespace yarpc {
 
 namespace server_internal {
 
-session::session(boost::asio::io_service& ios, size_t chunk_size, std::function<void(boost::asio::streambuf&)> on_message) :
+session::session(boost::asio::io_service& ios, 
+    size_t chunk_size, 
+    std::function<void(boost::asio::streambuf&)> on_message) :
     io_service_(ios),
     socket_(ios),
     chunk_size_(chunk_size),
@@ -133,10 +135,24 @@ int server::RegisterService(std::shared_ptr<google::protobuf::Service> service) 
     return 0;
 }
 
+std::shared_ptr<google::protobuf::Service> server::find_service_by_fulllname(std::string full_name) {
+    auto it = service_map_.find(full_name);
+    return it != service_map_.end() ? it->second : NULL;
+}
+
+void server::send_rpc_reply() {
+    std::cout << "reply" << std::endl;
+}
+
 // private:
 void server::accept() {
-    std::shared_ptr<server_internal::session> new_session(new server_internal::session(service_pool_.get_io_service(), 
-        chunk_size_, std::bind(&server::on_message, this, this, std::placeholders::_1)));
+    std::shared_ptr<server_internal::session> new_session(
+        new server_internal::session(
+            service_pool_.get_io_service(), 
+            chunk_size_, 
+            std::bind(&server::on_message, this, this, std::placeholders::_1)
+        )
+    );
     sessions_.emplace_back(new_session);
 
     std::weak_ptr<server_internal::session> wp(new_session);

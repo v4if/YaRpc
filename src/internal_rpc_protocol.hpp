@@ -5,7 +5,6 @@
 #include <google/protobuf/service.h>
 #include <google/protobuf/descriptor.h>
 #include <boost/asio.hpp>
-#include "controller.hpp"
 #include "port.hpp"
 #include "meta.pb.h"
 
@@ -25,9 +24,12 @@ namespace internal_rpc_protocol {
      *     meta_size    request_size    meta_data  request_data  message_size
     */
 
-    // Client
+    // client
     // 序列化request，并添加meta
-    void serialize_and_packed_request(std::string* buf_stream, const gMethodDescriptor *method, gController* controller, const gMessage* request);
+    void serialize_and_packed_request(std::string* buf_stream, 
+        const gMethodDescriptor *method, 
+        gController* controller, 
+        const gMessage* request);
 
     // server
     void process_and_unpacked_request(server* serv, boost::asio::streambuf& read_buff);

@@ -9,6 +9,7 @@
 #include <map>
 #include "noncopyable.hpp"
 #include "io_service_pool.hpp"
+#include "protocol_template.hpp"
 #include "internal_rpc_protocol.hpp"
 
 namespace yarpc{
@@ -19,7 +20,9 @@ namespace server_internal {
 class session : public std::enable_shared_from_this<session>, noncopyable
 {
 public:
-    session(boost::asio::io_service& ios, size_t chunk_size_, std::function<void(boost::asio::streambuf&)> on_message);
+    session(boost::asio::io_service& ios, 
+        size_t chunk_size_, 
+        std::function<void(boost::asio::streambuf&)> on_message);
 
     ~session();
 
@@ -54,10 +57,11 @@ private:
 } // namespace
 
 struct ServerOptions {
-    int service_poll_sz;        // io_service : per cpu
-    int thread_group_sz;        // 处理post queue的线程数
-    int uptime;                 // 运行时间
-    std::size_t chunk_size;             // session 每次read的最大bytes
+    int service_poll_sz;            // io_service : per cpu
+    int thread_group_sz;            // 处理post queue的线程数
+    int uptime;                     // 运行时间
+    std::size_t chunk_size;         // session 每次read的最大bytes
+    // protocol_template protocol;     // 协议
 
     ServerOptions() :
         service_poll_sz(std::thread::hardware_concurrency()),
@@ -82,6 +86,10 @@ public:
 
     int RegisterService(std::shared_ptr<google::protobuf::Service> service);
 
+    std::shared_ptr<google::protobuf::Service> find_service_by_fulllname(std::string full_name);
+
+    void send_rpc_reply();
+
 private:
     void accept();
     void on_message(server* serv, boost::asio::streambuf& read_buff);
@@ -101,6 +109,7 @@ private:
     bool want_close_;
 
     std::map<std::string, std::shared_ptr<google::protobuf::Service>> service_map_;
+    // protocol_template protocol;
 };
 
 } // namespace 

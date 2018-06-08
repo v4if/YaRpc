@@ -62,10 +62,12 @@ void session::write_one_from_msg_queue(std::shared_ptr<message_op> msg_op) {
     msg_writing_q_.push_back(std::move(msg_op));
     
     if (is_connected_ && !in_progress) {
-        boost::asio::async_write(socket_, boost::asio::buffer(msg_writing_q_.front()->message, msg_writing_q_.front()->message.size()),
+        boost::asio::async_write(socket_, 
+            boost::asio::buffer(msg_writing_q_.front()->message, msg_writing_q_.front()->message.size()),
             [this](const boost::system::error_code& err, std::size_t bytes_transferred) {
-            write_until_handler(err, bytes_transferred);
-        });
+                write_until_handler(err, bytes_transferred);
+            }
+        );
     }
 }
 
@@ -81,10 +83,12 @@ void session::write_until_handler(const boost::system::error_code& err, std::siz
 
         msg_writing_q_.pop_front();
         if (is_connected_ && !msg_writing_q_.empty()) {
-            boost::asio::async_write(socket_, boost::asio::buffer(msg_writing_q_.front()->message, msg_writing_q_.front()->message.size()),
+            boost::asio::async_write(socket_, 
+                boost::asio::buffer(msg_writing_q_.front()->message, msg_writing_q_.front()->message.size()),
                 [this](const boost::system::error_code& err, std::size_t bytes_transferred) {
-                write_until_handler(err, bytes_transferred);
-            });
+                    write_until_handler(err, bytes_transferred);
+                }
+            );
         }
     } else {
         // if (!want_close_) {

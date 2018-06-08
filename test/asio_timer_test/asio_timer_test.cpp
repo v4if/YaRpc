@@ -1,5 +1,6 @@
 /**
- Boost::asio io_service 实现分析 io_service的作用 io_servie 实现了一个任务队列，这里的任务就是void(void)的函数。Io_servie最常用的两个接口是post和run，post向任务队列中投递任务，run是执行队列中的任务，直到全部执行完毕，并且run可以被N个线程调用。
+Boost::asio io_service 实现分析 io_service的作用 io_servie 实现了一个任务队列，这里的任务就是void(void)的函数。
+Io_servie最常用的两个接口是post和run，post向任务队列中投递任务，run是执行队列中的任务，直到全部执行完毕，并且run可以被N个线程调用。
 */
 #include <boost/asio.hpp>   
 #include <boost/thread.hpp>   

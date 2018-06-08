@@ -63,7 +63,9 @@ void test2() {
     int thread_no = 10;
     std::vector<std::shared_ptr<boost::thread>> v;
     for (int i = 0;i < thread_no;i++) {
-        std::shared_ptr<boost::thread> temp(new boost::thread(boost::bind(&boost::asio::io_service::run, &io_service)));
+        std::shared_ptr<boost::thread> temp(
+            new boost::thread(boost::bind(&boost::asio::io_service::run, &io_service))
+        );
         v.push_back(temp);
     }
     
@@ -99,7 +101,9 @@ void test() {
     int thread_no = 10;
     std::vector<std::shared_ptr<boost::thread>> v;
     for (int i = 0;i < thread_no;i++) {
-        std::shared_ptr<boost::thread> temp(new boost::thread(boost::bind(&boost::asio::io_service::run, &io_service)));
+        std::shared_ptr<boost::thread> temp(
+            new boost::thread(boost::bind(&boost::asio::io_service::run, &io_service))
+        );
         v.push_back(temp);
     }
     
