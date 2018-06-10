@@ -7,4 +7,5 @@ include/
 
 # Build file
 build/
+example/**/build/
 test/**/build/

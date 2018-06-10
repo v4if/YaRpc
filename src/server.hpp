@@ -7,10 +7,12 @@
 #include <google/protobuf/service.h>
 #include <google/protobuf/descriptor.h>
 #include <map>
+#include <deque>
 #include "noncopyable.hpp"
 #include "io_service_pool.hpp"
 #include "protocol_template.hpp"
 #include "internal_rpc_protocol.hpp"
+#include "message_op.hpp"
 
 namespace yarpc{
 
@@ -20,11 +22,13 @@ namespace server_internal {
 class session : public std::enable_shared_from_this<session>, noncopyable
 {
 public:
-    session(boost::asio::io_service& ios, 
-        size_t chunk_size_, 
-        std::function<void(boost::asio::streambuf&)> on_message);
+    session(boost::asio::io_service& ios, size_t chunk_size_);
 
     ~session();
+
+    void bind_on_message(std::function<void(boost::asio::streambuf&)> on_message);
+
+    bool post_msg_queue(std::shared_ptr<message_op> msg_op);      // write 对端消息队列
 
     boost::asio::ip::tcp::socket& socket();
 
@@ -37,20 +41,26 @@ public:
     void read();
 
 private:
+    void write_one_from_msg_queue(std::shared_ptr<message_op> msg_op);
+    void write_until_handler(const boost::system::error_code& err, std::size_t bytes_transferred);
+
     boost::asio::io_service& io_service_;
     boost::asio::ip::tcp::socket socket_;
-    std::size_t const chunk_size_;   // 每次read最大bytes
-
-    std::function<void(boost::asio::streambuf&)> on_message_;
     
+    std::mutex mq_writing_mtx_;
+    std::deque<std::shared_ptr<message_op>> msg_writing_q_;
+
     // buffers as a pointer and size in bytes
     /**
     typedef std::pair<void*, std::size_t> mutable_buffer;
     typedef std::pair<const void*, std::size_t> const_buffer;
     */
+    std::size_t const chunk_size_;   // 每次read最大bytes
     boost::asio::streambuf read_buff_;  // 读缓冲
+    std::function<void(boost::asio::streambuf&)> on_message_;
 
     bool is_connected_;
+    bool error_;
     bool want_close_;
 };
 
@@ -88,17 +98,17 @@ public:
 
     std::shared_ptr<google::protobuf::Service> find_service_by_fulllname(std::string full_name);
 
-    void send_rpc_reply();
+    void send_rpc_reply(gController* controller, const gMessage* response);
 
 private:
     void accept();
-    void on_message(server* serv, boost::asio::streambuf& read_buff);
+    void on_message(server* serv, std::weak_ptr<server_internal::session> session, boost::asio::streambuf& read_buff);
 
 private:
-    int const service_poll_sz_;     // io_service 数
-    int const thread_group_sz_;     // 处理post queue线程数
-    int const uptime_;              // 运行时间
-    std::size_t const chunk_size_;       // session 每次read的最大bytes
+    int const service_poll_sz_;         // io_service 数
+    int const thread_group_sz_;         // 处理post queue线程数
+    int const uptime_;                  // 运行时间
+    std::size_t const chunk_size_;      // session 每次read的最大bytes
 
     io_service_pool service_pool_;
     boost::asio::ip::tcp::acceptor acceptor_;    

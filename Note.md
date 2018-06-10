@@ -57,3 +57,6 @@ streambuf is not shrink
 一个.c是一个编译单元，头文件要被包含进.c文件里，尽量在.c文件里面include，避免重复包含和循环包含
 
 80 120 限制 一行代码宽度不要超过120
+
+
+message_size 最大32bit

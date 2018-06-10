@@ -14,6 +14,9 @@
 #include <mutex>
 #include <boost/asio.hpp>
 #include <boost/asio/steady_timer.hpp>  
+#include <google/protobuf/service.h>
+#include <google/protobuf/descriptor.h>
+
 #include "io_service_pool.hpp"
 #include "message_op.hpp"
 
@@ -40,12 +43,14 @@ private:
     int uptime_;
 };
 
-class session : noncopyable
+class session : public std::enable_shared_from_this<session>, noncopyable
 {
 public:
-    session(boost::asio::io_service& ios, boost::asio::ip::tcp::endpoint endpoint);
+    session(boost::asio::io_service& ios, boost::asio::ip::tcp::endpoint endpoint, std::size_t chunk_size);
 
     ~session();
+
+    void bind_on_message(std::function<void(boost::asio::streambuf&)> on_message);
 
     bool post_msg_queue(std::shared_ptr<message_op> msg_op);      // write 对端消息队列
 
@@ -79,11 +84,13 @@ private:
     boost::asio::ip::tcp::endpoint endpoint_;
     std::unique_ptr<boost::asio::steady_timer> stop_timer_;
 
-    std::mutex mq_mtx;
+    std::mutex mq_writing_mtx_;
     std::deque<std::shared_ptr<message_op>> msg_writing_q_;
 
-    std::size_t const block_size_;
-    char* const buffer_;
+    std::size_t const chunk_size_;   // 每次read最大bytes
+    boost::asio::streambuf read_buff_;  // 读缓冲
+    std::function<void(boost::asio::streambuf&)> on_message_;
+
     std::size_t bytes_written_ = 0;
     std::size_t bytes_read_ = 0;
     std::size_t count_written_ = 0;
@@ -100,12 +107,14 @@ struct ClientOptions {
     int keep_alive_time;        // session保活时间
     int time_out;               // request超时时间
     int uptime;                 // Client运行时间
+    std::size_t chunk_size;         // session 每次read的最大bytes
 
     ClientOptions() :
         callback_thread_no(4),
         keep_alive_time(-1),
         time_out(-1),
-        uptime(-1)
+        uptime(-1),
+        chunk_size(1024)
         {}
 };
 
@@ -120,15 +129,18 @@ public:
 
     void Stop();
 
-    bool post_message(char const* host, int port, std::shared_ptr<message_op> msg_op);
+    bool post_message(char const* host, int port, std::shared_ptr<message_op> msg_op, google::protobuf::RpcController* controller);
 
     void wait();
 
 private:
-    int const thread_count_;    // 回调线程数
-    int const alive_time_;      // session 保活时间
-    int const timeout_;         // request 超时时间
-    int const uptime_;          // Client 运行时间
+    void on_message(google::protobuf::RpcController* controller, boost::asio::streambuf& read_buff);
+
+    int const thread_count_;        // 回调线程数
+    int const alive_time_;          // session 保活时间
+    int const timeout_;             // request 超时时间
+    int const uptime_;              // Client 运行时间
+    std::size_t const chunk_size_;         // session 每次read的最大bytes
     
     std::unique_ptr<boost::asio::io_service> io_service_;
     std::unique_ptr<boost::asio::io_service::work> io_work_;

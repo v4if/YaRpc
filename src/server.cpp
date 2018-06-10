@@ -5,19 +5,70 @@ namespace yarpc {
 
 namespace server_internal {
 
-session::session(boost::asio::io_service& ios, 
-    size_t chunk_size, 
-    std::function<void(boost::asio::streambuf&)> on_message) :
+session::session(boost::asio::io_service& ios, size_t chunk_size) :
     io_service_(ios),
     socket_(ios),
     chunk_size_(chunk_size),
-    on_message_(on_message),
     is_connected_(false),
+    error_(false),
     want_close_(false) {
 }
 
 session::~session() {
 
+}
+
+void session::bind_on_message(std::function<void(boost::asio::streambuf&)> on_message) {
+    on_message_ = std::move(on_message);
+}
+
+bool session::post_msg_queue(std::shared_ptr<message_op> msg_op) {
+    io_service_.post([this, msg_op]() mutable {
+        write_one_from_msg_queue(msg_op);
+    });
+    return true;
+}
+
+void session::write_one_from_msg_queue(std::shared_ptr<message_op> msg_op) {
+    std::lock_guard<std::mutex> _(mq_writing_mtx_);
+    bool in_progress = !msg_writing_q_.empty();
+    msg_writing_q_.push_back(std::move(msg_op));
+    
+    if (is_connected_ && !in_progress) {
+        boost::asio::async_write(socket_, 
+            boost::asio::buffer(msg_writing_q_.front()->message, msg_writing_q_.front()->message.size()),
+            [this](const boost::system::error_code& err, std::size_t bytes_transferred) {
+                write_until_handler(err, bytes_transferred);
+            }
+        );
+    }
+}
+
+void session::write_until_handler(const boost::system::error_code& err, std::size_t bytes_transferred) {
+    if (!err) {
+        std::lock_guard<std::mutex> _(mq_writing_mtx_);
+
+        std::shared_ptr<message_op> old_msg_op = msg_writing_q_.front();
+
+        msg_writing_q_.pop_front();
+        if (old_msg_op->done) {
+            old_msg_op->done();
+        }
+
+        if (is_connected_ && !msg_writing_q_.empty()) {
+            boost::asio::async_write(socket_, 
+                boost::asio::buffer(msg_writing_q_.front()->message, msg_writing_q_.front()->message.size()),
+                [this](const boost::system::error_code& err, std::size_t bytes_transferred) {
+                    write_until_handler(err, bytes_transferred);
+                }
+            );
+        }
+    } else {
+        if (!want_close_) {
+            std::cout << "write failed: " << err.message() << "\n";
+            error_ = true;
+        }
+    }
 }
 
 boost::asio::ip::tcp::socket& session::socket() {
@@ -27,6 +78,7 @@ boost::asio::ip::tcp::socket& session::socket() {
 void session::start() {
     boost::asio::ip::tcp::no_delay no_delay(true);
     socket_.set_option(no_delay);
+    is_connected_ = true;
     read();
 }
 
@@ -36,17 +88,6 @@ void session::stop() {
         socket_.close();
         is_connected_ = false;
     });
-}
-
-void session::write() {
-    // boost::asio::async_write(socket_, boost::asio::buffer(buff, max_size_),
-    //     [this, self = shared_from_this()](
-    //         const boost::system::error_code& err, size_t bytes_transferred) {
-    //     if (!err) {
-    //         assert(bytes_transferred == block_size_);
-    //         read();
-    //     }
-    // });
 }
 
 void session::read() {
@@ -140,8 +181,27 @@ std::shared_ptr<google::protobuf::Service> server::find_service_by_fulllname(std
     return it != service_map_.end() ? it->second : NULL;
 }
 
-void server::send_rpc_reply() {
-    std::cout << "reply" << std::endl;
+void server::send_rpc_reply(gController* controller, const gMessage* response) {
+    Controller* cntl = static_cast<Controller*>(controller);
+    std::unique_ptr<Controller> recycle_cntl(cntl);
+
+    std::unique_ptr<const gMessage> recycle_res(response);
+
+    std::weak_ptr<server_internal::session> session = recycle_cntl->get_reply_session();
+    std::shared_ptr<server_internal::session> session_ptr = session.lock();
+    if (session_ptr) {
+        string buf_stream;
+	    internal_rpc_protocol::serialize_and_packed_response(&buf_stream, cntl, recycle_res.get());
+
+        std::shared_ptr<message_op> msg_op(
+            new message_op{
+                std::move(buf_stream),
+                NULL,
+                NULL
+            }
+        );
+        session_ptr->post_msg_queue(msg_op);
+    }
 }
 
 // private:
@@ -149,9 +209,12 @@ void server::accept() {
     std::shared_ptr<server_internal::session> new_session(
         new server_internal::session(
             service_pool_.get_io_service(), 
-            chunk_size_, 
-            std::bind(&server::on_message, this, this, std::placeholders::_1)
+            chunk_size_
         )
+    );
+    std::weak_ptr<server_internal::session> session_ptr(new_session);
+    new_session->bind_on_message(
+        std::bind(&server::on_message, this, this, session_ptr, std::placeholders::_1)
     );
     sessions_.emplace_back(new_session);
 
@@ -175,9 +238,13 @@ void server::accept() {
     });
 }
 
-void server::on_message(server* serv, boost::asio::streambuf& read_buff) {
+void server::on_message(server* serv, 
+    std::weak_ptr<server_internal::session> session, 
+    boost::asio::streambuf& read_buff) {
     // multi protocols
-    internal_rpc_protocol::process_and_unpacked_request(serv, read_buff);
+    std::shared_ptr<server_internal::session> session_ptr = session.lock();
+    internal_rpc_protocol::process_and_unpacked_request(serv, session, read_buff);
+
 }
 
 } // namespace 

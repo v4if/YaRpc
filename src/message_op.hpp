@@ -5,6 +5,8 @@
 #include <functional>
 #include <mutex>
 #include <condition_variable>
+#include <google/protobuf/service.h>
+#include <google/protobuf/descriptor.h>
 
 namespace yarpc {
 
@@ -17,16 +19,20 @@ enum future_status {
 class message_op {
 public:
     std::string message;
+    // has not ownship
+    google::protobuf::Message* response;
     std::function<void(void)> done;
 
-    message_op(std::string msg, std::function<void(void)> d) :
+    message_op(std::string msg, google::protobuf::Message* res, std::function<void(void)> d) :
         message(msg),
+        response(res),
         done(d),
         status(FUTURE_PENDING) {
 
     }
     message_op(const message_op& other) :
         message(other.message),
+        response(other.response),
         done(other.done),
         status(other.status) {
 

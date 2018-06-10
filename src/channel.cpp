@@ -21,47 +21,28 @@ void Channel::CallMethod(const gMethodDescriptor *method, gController *controlle
 	Controller* cntl = static_cast<Controller*>(controller);
 
 	string buf_stream;
-	internal_rpc_protocol::serialize_and_packed_request(&buf_stream, method, cntl, request);
+	uint64 sequence_id = internal_rpc_protocol::serialize_and_packed_request(&buf_stream, method, cntl, request);
 
-	std::cout << "service full name: " << method->service()->full_name() << std::endl;
-	std::cout << "service name: " << method->service()->name() << std::endl;
-    std::cout << "method name: " << method->name() << std::endl;
-	std::cout << "typename: " << request->GetTypeName() << std::endl;
+	// std::cout << "service full name: " << method->service()->full_name() << std::endl;
+	// std::cout << "service name: " << method->service()->name() << std::endl;
+    // std::cout << "method name: " << method->name() << std::endl;
+	// std::cout << "typename: " << request->GetTypeName() << std::endl;
 
-	std::shared_ptr<message_op> msg_op(new message_op{std::move(buf_stream), [msg_op, done]() {
-		std::cout << "done" << std::endl;
-		msg_op->notify();
-		// 异步请求
+	std::shared_ptr<message_op> msg_op(new message_op{std::move(buf_stream), 
+		response, 
+		[done]() {
+		// async rpc remote call 
 		if (done) {
 			done->Run();
 		}
 	}});
-	cntl->push_pending_q(msg_op);
-	client_->post_message(host_, port_, msg_op);
+	cntl->push_pending_call_map(sequence_id, msg_op);
+	client_->post_message(host_, port_, msg_op, cntl);
 
 	// block rpc remote call
 	if (!done) {
 		msg_op->wait();
 	}
-
-		// request->SerializeAsString();
-	// if (!_session_id) {
-	// 	Connect(controller);
-	// 	if (controller->Failed()) return;
-	// }
-
-	// const string &service_name = method->service()->name();
-	
-	
-	// std::string * content =  new std::string;
-	// request->SerializeToString(content);
-	// _client->CallMsgEnqueue(_session_id, content, service_id, method->index(),
-	// 	controller, response, done, _write_pipe);
-	
-	// if (!done) {
-	// 	char buf;
-	// 	read(_read_pipe, &buf, sizeof(buf));
-	// }
 }
 
 } // namespace

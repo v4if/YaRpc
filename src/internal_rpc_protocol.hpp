@@ -17,23 +17,38 @@ typedef google::protobuf::Closure gClosure;
 namespace yarpc {
 
 class server;
+namespace server_internal {
+    class session;
+}
 
 namespace internal_rpc_protocol {
     /**
      * |    uint32    |    uint32    |    data    |    data    |   uint32    |
-     *     meta_size    request_size    meta_data  request_data  message_size
+     *     meta_size    request_size req_meta_data  request_data  message_size
     */
 
     // client
     // 序列化request，并添加meta
-    void serialize_and_packed_request(std::string* buf_stream, 
+    uint64 serialize_and_packed_request(std::string* buf_stream, 
         const gMethodDescriptor *method, 
         gController* controller, 
         const gMessage* request);
 
-    // server
-    void process_and_unpacked_request(server* serv, boost::asio::streambuf& read_buff);
+    void process_and_unpacked_response(boost::asio::streambuf& read_buff,
+        google::protobuf::RpcController* controller);
 
+    /**
+     * |    uint32    |    uint32    |    data    |    data    |   uint32    |
+     *     meta_size   response_size res_meta_data response_data  message_size
+    */
+    // server
+    void serialize_and_packed_response(std::string* buf_stream, 
+        gController* controller, 
+        const gMessage* response);
+
+    void process_and_unpacked_request(server* serv, 
+        std::weak_ptr<server_internal::session> session, 
+        boost::asio::streambuf& read_buff);
 } // namespace internal_rpc_protocol
 
 } // namespace internal_rpc_protocol

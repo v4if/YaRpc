@@ -1,4 +1,5 @@
 #include "client.hpp"
+#include "internal_rpc_protocol.hpp"
 
 namespace yarpc{
 
@@ -32,23 +33,24 @@ void stats::print()
 }
 
 // class yarpc::client_::session
-session::session(boost::asio::io_service& ios, boost::asio::ip::tcp::endpoint endpoint)
-    : io_service_(ios),
+session::session(boost::asio::io_service& ios, boost::asio::ip::tcp::endpoint endpoint, std::size_t chunk_size) :
+    io_service_(ios),
     socket_(ios),
     endpoint_(endpoint),
     stop_timer_(new boost::asio::steady_timer(ios)),
-    block_size_(1024),
-    buffer_(new char[1024]) {
-    for (std::size_t i = 0; i < block_size_; ++i)
-        buffer_[i] = static_cast<char>(i % 128);
+    chunk_size_(chunk_size){
+
 }
 
 session::~session() {
-    delete[] buffer_;
+
+}
+
+void session::bind_on_message(std::function<void(boost::asio::streambuf&)> on_message) {
+    on_message_ = std::move(on_message);
 }
 
 bool session::post_msg_queue(std::shared_ptr<message_op> msg_op) {
-    std::cout << "submit msg [ " << msg_op->message << " ]\n";
     io_service_.post([this, msg_op]() mutable {
         write_one_from_msg_queue(msg_op);
     });
@@ -56,8 +58,7 @@ bool session::post_msg_queue(std::shared_ptr<message_op> msg_op) {
 }
 
 void session::write_one_from_msg_queue(std::shared_ptr<message_op> msg_op) {
-    std::cout << "has post msg [ " << msg_op->message << " ] to msg_pending_q_\n";
-    std::lock_guard<std::mutex> _(mq_mtx);
+    std::lock_guard<std::mutex> _(mq_writing_mtx_);
     bool in_progress = !msg_writing_q_.empty();
     msg_writing_q_.push_back(std::move(msg_op));
     
@@ -73,15 +74,15 @@ void session::write_one_from_msg_queue(std::shared_ptr<message_op> msg_op) {
 
 void session::write_until_handler(const boost::system::error_code& err, std::size_t bytes_transferred) {
     if (!err) {
-        std::lock_guard<std::mutex> _(mq_mtx);
+        std::lock_guard<std::mutex> _(mq_writing_mtx_);
 
         bytes_written_ += bytes_transferred;
         ++count_written_;
 
         std::shared_ptr<message_op> old_msg_op = msg_writing_q_.front();
-        std::cout << "has write msg [ " << old_msg_op->message << " ] to remote side\n";
 
         msg_writing_q_.pop_front();
+        
         if (is_connected_ && !msg_writing_q_.empty()) {
             boost::asio::async_write(socket_, 
                 boost::asio::buffer(msg_writing_q_.front()->message, msg_writing_q_.front()->message.size()),
@@ -91,45 +92,27 @@ void session::write_until_handler(const boost::system::error_code& err, std::siz
             );
         }
     } else {
-        // if (!want_close_) {
-        //     std::cout << "write failed: " << err.message() << "\n";
-        //     error_ = true;
-        // }
-        std::cout << "write failed: " << err.message() << "\n";
+        if (!want_close_) {
+            std::cout << "write failed: " << err.message() << "\n";
+            error_ = true;
+        }
     }
 }
 
-void session::write() {
-    boost::asio::async_write(socket_, boost::asio::buffer(buffer_, block_size_),
-        [this](const boost::system::error_code& err, std::size_t bytes_transferred) {
-        if (!err) {
-            assert(bytes_transferred == block_size_);
-            bytes_written_ += bytes_transferred;
-            ++count_written_;
-            read();
-        } else {
-            if (!want_close_) {
-                //std::cout << "write failed: " << err.message() << "\n";
-                error_ = true;
-            }
-        }
-    });
-}
-
 void session::read() {
-    boost::asio::async_read(socket_, boost::asio::buffer(buffer_, block_size_),
-        [this](const boost::system::error_code& err, std::size_t bytes_transferred) {
-        if (!err) {
-            assert(bytes_transferred == block_size_);
-            bytes_read_ += bytes_transferred;
-            ++count_read_;
-            // write();
+    boost::asio::streambuf::mutable_buffers_type mutable_buff = read_buff_.prepare(chunk_size_);
+    socket_.async_read_some(mutable_buff,     
+        [this, self = shared_from_this()](const boost::system::error_code& err, 
+            size_t bytes_transferred) {
+        if (!err && bytes_transferred > 0) {
+            read_buff_.commit(bytes_transferred);
 
+            on_message_(read_buff_);
+            
             read();
         } else {
-            if (!want_close_) {
-                //std::cout << "read failed: " << err.message() << "\n";
-                error_ = true;
+            if (!want_close_) { 
+                std::cout << "read failed: " << err.message() << "\n";
             }
         }
     });
@@ -144,7 +127,6 @@ void session::start(std::shared_ptr<message_op> msg_op) {
 
             is_connected_ = true;
             post_msg_queue(msg_op);
-            // write();
 
             read();
         }
@@ -194,6 +176,7 @@ Client::Client(const ClientOptions options) :
     alive_time_(options.keep_alive_time),
     timeout_(options.time_out),
     uptime_(options.uptime),
+    chunk_size_(options.chunk_size),
     io_service_(new boost::asio::io_service),
     io_work_(new boost::asio::io_service::work(*io_service_)),
     resolver_(new boost::asio::ip::tcp::resolver(*io_service_)),
@@ -241,7 +224,11 @@ void Client::Stop() {
     io_work_.reset();
 }
 
-bool Client::post_message(char const* host, int port, std::shared_ptr<message_op> msg_op) {
+bool Client::post_message(char const* host, 
+    int port, 
+    std::shared_ptr<message_op> msg_op,
+    google::protobuf::RpcController* controller) {
+
     std::shared_ptr<client_internal::session> ss;
     if (!sessions_.empty()) {
         for (auto& session : sessions_) {
@@ -260,7 +247,12 @@ bool Client::post_message(char const* host, int port, std::shared_ptr<message_op
             resolver_->resolve(boost::asio::ip::tcp::resolver::query(host, std::to_string(port)));
         boost::asio::ip::tcp::endpoint endpoint = *iter;
 
-        std::shared_ptr<client_internal::session> new_session(new client_internal::session(*io_service_, endpoint));
+        std::shared_ptr<client_internal::session> new_session(
+            new client_internal::session(*io_service_, endpoint, chunk_size_)
+        );
+        new_session->bind_on_message(
+            std::bind(&Client::on_message, this, controller, std::placeholders::_1)
+        );
         sessions_.emplace_back(new_session);
 
         if (alive_time_ != -1) {
@@ -291,6 +283,13 @@ void Client::wait() {
     for (auto& thread : threads_) {
         thread->join();
     }
+}
+
+void Client::on_message(google::protobuf::RpcController* controller, boost::asio::streambuf& read_buff) {
+
+    // multi protocols
+    internal_rpc_protocol::process_and_unpacked_response(read_buff, controller);
+
 }
 
 } // namespace 
