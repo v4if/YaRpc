@@ -109,6 +109,9 @@ void session::read() {
             if (!err && bytes_transferred > 0) {
                 read_buff_.commit(bytes_transferred);
 
+                bytes_read_ += bytes_transferred;
+                ++count_read_;
+
                 on_message_(read_buff_);
                 
                 read();
