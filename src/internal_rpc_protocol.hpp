@@ -16,7 +16,7 @@ typedef google::protobuf::Closure gClosure;
 
 namespace yarpc {
 
-class server;
+class Server;
 namespace server_internal {
     class session;
 }
@@ -46,7 +46,7 @@ namespace internal_rpc_protocol {
         gController* controller, 
         const gMessage* response);
 
-    void process_and_unpacked_request(server* serv, 
+    void process_and_unpacked_request(Server* serv, 
         std::weak_ptr<server_internal::session> session, 
         boost::asio::streambuf& read_buff);
 } // namespace internal_rpc_protocol

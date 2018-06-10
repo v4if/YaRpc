@@ -94,10 +94,11 @@ namespace internal_rpc_protocol {
                 msg_op->response->ParseFromArray(data.c_str() + sizeof(meta_size) + sizeof(response_size) + meta_size, 
                     response_size);
 
+                cntl->remove_pending_call(response_meta.sequence_id());
+
                 msg_op->notify();
                 msg_op->done();
                 
-                cntl->remove_pending_call(response_meta.sequence_id());
 
                 read_buff.consume(min_complete_size + expected_msg_size);
             } else {
@@ -147,7 +148,7 @@ namespace internal_rpc_protocol {
         buf_stream->append(reinterpret_cast<char*>(&netorder_message_size), sizeof(netorder_message_size));
     }
 
-    void process_and_unpacked_request(server* serv, 
+    void process_and_unpacked_request(Server* serv, 
         std::weak_ptr<server_internal::session> session, 
         boost::asio::streambuf& read_buff) {
 
@@ -202,9 +203,9 @@ namespace internal_rpc_protocol {
                 
                 // 销毁指针
                 google::protobuf::Closure* done = 
-                    google::protobuf::NewCallback<server, gController*, const gMessage*>(
+                    google::protobuf::NewCallback<Server, gController*, const gMessage*>(
                         serv, 
-                        &server::send_rpc_reply, 
+                        &Server::send_rpc_reply, 
                         cntl.get(), 
                         response.get()
                     );

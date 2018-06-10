@@ -17,6 +17,8 @@
 #include <google/protobuf/service.h>
 #include <google/protobuf/descriptor.h>
 
+#include "protocol_template.hpp"
+#include "internal_rpc_protocol.hpp"
 #include "io_service_pool.hpp"
 #include "message_op.hpp"
 
@@ -108,13 +110,20 @@ struct ClientOptions {
     int time_out;               // request超时时间
     int uptime;                 // Client运行时间
     std::size_t chunk_size;         // session 每次read的最大bytes
+    protocol_template protocol;     // 协议
 
     ClientOptions() :
         callback_thread_no(4),
         keep_alive_time(-1),
         time_out(-1),
         uptime(-1),
-        chunk_size(1024)
+        chunk_size(1024),
+        protocol{
+            internal_rpc_protocol::serialize_and_packed_request,
+            internal_rpc_protocol::process_and_unpacked_response,
+            internal_rpc_protocol::serialize_and_packed_response,
+            internal_rpc_protocol::process_and_unpacked_request,
+        }
         {}
 };
 
@@ -125,7 +134,7 @@ public:
 
     ~Client();
 
-    void start();
+    void Start();
 
     void Stop();
 
@@ -135,7 +144,9 @@ public:
         std::shared_ptr<message_op> msg_op, 
         google::protobuf::RpcController* controller);
 
-    void wait();
+    void Wait();
+
+    protocol_template protocol();
 
 private:
     void on_message(google::protobuf::RpcController* controller, boost::asio::streambuf& read_buff);
@@ -157,6 +168,8 @@ private:
     std::unique_ptr<boost::asio::steady_timer> stop_timer_;
 
     bool is_running_;
+
+    protocol_template protocol_;
 };
 
 } // namespace 

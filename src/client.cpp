@@ -185,7 +185,8 @@ Client::Client(const ClientOptions options) :
     resolver_(new boost::asio::ip::tcp::resolver(*io_service_)),
     stats_(options.uptime == -1 ? 1 : options.uptime),
     stop_timer_(new boost::asio::steady_timer(*io_service_)),
-    is_running_(false) {}
+    is_running_(false),
+    protocol_(options.protocol) {}
 
 Client::~Client() {
     for (auto& session : sessions_) {
@@ -198,7 +199,7 @@ Client::~Client() {
     stats_.print();
 }
 
-void Client::start() {
+void Client::Start() {
     if (uptime_ != -1) {
         stop_timer_->expires_from_now(std::chrono::seconds(uptime_));
         stop_timer_->async_wait([this](const boost::system::error_code& error) {
@@ -282,7 +283,7 @@ bool Client::post_message(char const* host,
     return false;
 }
 
-void Client::wait() {
+void Client::Wait() {
     for (auto& thread : threads_) {
         thread->join();
     }
@@ -291,8 +292,12 @@ void Client::wait() {
 void Client::on_message(google::protobuf::RpcController* controller, boost::asio::streambuf& read_buff) {
 
     // multi protocols
-    internal_rpc_protocol::process_and_unpacked_response(read_buff, controller);
+    protocol_.process_and_unpacked_response(read_buff, controller);
 
+}
+
+protocol_template Client::protocol() {
+    return protocol_;
 }
 
 } // namespace 

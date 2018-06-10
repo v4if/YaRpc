@@ -25,12 +25,12 @@ private:
 int main() {
     yarpc::ServerOptions options;
     options.uptime = 10;
-    yarpc::server rpc_server(options);
+    yarpc::Server rpc_server(options);
 
-    rpc_server.start("127.0.0.1", "5678");
+    rpc_server.Start("127.0.0.1", "5678");
     
     std::shared_ptr<example::EchoService> echo_service(new EchoServiceImpl);
     rpc_server.RegisterService(echo_service);
 
-    rpc_server.wait();
+    rpc_server.Wait();
 }

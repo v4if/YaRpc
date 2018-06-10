@@ -25,7 +25,7 @@ void Channel::CallMethod(const gMethodDescriptor *method,
 	Controller* cntl = static_cast<Controller*>(controller);
 
 	string buf_stream;
-	uint64 sequence_id = internal_rpc_protocol::serialize_and_packed_request(&buf_stream, method, cntl, request);
+	uint64 sequence_id = client_->protocol().serialize_and_packed_request(&buf_stream, method, cntl, request);
 
 	// std::cout << "service full name: " << method->service()->full_name() << std::endl;
 	// std::cout << "service name: " << method->service()->name() << std::endl;

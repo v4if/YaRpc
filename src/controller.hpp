@@ -9,7 +9,7 @@
 
 namespace yarpc {
 
-class server;
+class Server;
 namespace server_internal {
     class session;
 }

@@ -114,7 +114,7 @@ void session::read() {
 
 } // namespace
 
-server::server(const ServerOptions options) :
+Server::Server(const ServerOptions options) :
     service_poll_sz_(options.service_poll_sz),
     thread_group_sz_(options.thread_group_sz),
     uptime_(options.uptime),
@@ -122,20 +122,21 @@ server::server(const ServerOptions options) :
     service_pool_(options.service_poll_sz),
     acceptor_(service_pool_.get_io_service()),
     stop_timer_(new boost::asio::steady_timer(service_pool_.get_io_service(0))), 
-    want_close_(false) {
+    want_close_(false),
+    protocol_(options.protocol) {
 
     }
 
-void server::start(char const* host, char const* port) {
+void Server::Start(char const* host, char const* port) {
     auto endpoint = boost::asio::ip::tcp::endpoint(boost::asio::ip::address::from_string(host), atoi(port));
-    start(endpoint);
+    Start(endpoint);
 }
 
-void server::start(boost::asio::ip::tcp::endpoint ep) {
+void Server::Start(boost::asio::ip::tcp::endpoint ep) {
     if (uptime_ != -1) {
         stop_timer_->expires_from_now(std::chrono::seconds(uptime_));
         stop_timer_->async_wait([this](const boost::system::error_code& err) {
-            stop();
+            Stop();
         });
     }
 
@@ -148,7 +149,7 @@ void server::start(boost::asio::ip::tcp::endpoint ep) {
     accept();
 }
 
-void server::stop() {
+void Server::Stop() {
     for (auto& session : sessions_) {
         session->stop();
     }
@@ -159,11 +160,11 @@ void server::stop() {
     want_close_ = true;
 }
 
-void server::wait() {
+void Server::Wait() {
     service_pool_.run();
 }
 
-int server::RegisterService(std::shared_ptr<google::protobuf::Service> service) {
+int Server::RegisterService(std::shared_ptr<google::protobuf::Service> service) {
     const google::protobuf::ServiceDescriptor* sd = service->GetDescriptor();
     if (sd->method_count() == 0) {
         // service does not have any method
@@ -179,12 +180,12 @@ int server::RegisterService(std::shared_ptr<google::protobuf::Service> service) 
     return 0;
 }
 
-std::shared_ptr<google::protobuf::Service> server::find_service_by_fulllname(std::string full_name) {
+std::shared_ptr<google::protobuf::Service> Server::find_service_by_fulllname(std::string full_name) {
     auto it = service_map_.find(full_name);
     return it != service_map_.end() ? it->second : NULL;
 }
 
-void server::send_rpc_reply(gController* controller, const gMessage* response) {
+void Server::send_rpc_reply(gController* controller, const gMessage* response) {
     Controller* cntl = static_cast<Controller*>(controller);
     std::unique_ptr<Controller> recycle_cntl(cntl);
 
@@ -194,7 +195,7 @@ void server::send_rpc_reply(gController* controller, const gMessage* response) {
     std::shared_ptr<server_internal::session> session_ptr = session.lock();
     if (session_ptr) {
         string buf_stream;
-	    internal_rpc_protocol::serialize_and_packed_response(&buf_stream, cntl, recycle_res.get());
+	    protocol_.serialize_and_packed_response(&buf_stream, cntl, recycle_res.get());
 
         std::shared_ptr<message_op> msg_op(
             new message_op{
@@ -208,7 +209,7 @@ void server::send_rpc_reply(gController* controller, const gMessage* response) {
 }
 
 // private:
-void server::accept() {
+void Server::accept() {
     std::shared_ptr<server_internal::session> new_session(
         new server_internal::session(
             service_pool_.get_io_service(), 
@@ -217,7 +218,7 @@ void server::accept() {
     );
     std::weak_ptr<server_internal::session> session_ptr(new_session);
     new_session->bind_on_message(
-        std::bind(&server::on_message, this, this, session_ptr, std::placeholders::_1)
+        std::bind(&Server::on_message, this, this, session_ptr, std::placeholders::_1)
     );
     sessions_.emplace_back(new_session);
 
@@ -235,18 +236,18 @@ void server::accept() {
             accept();
         } else {
             if (!want_close_) {
-                std::cout << "server.cpp accept failed: " << err.message() << "\n";
+                std::cout << "accept failed: " << err.message() << "\n";
             }
         }
     });
 }
 
-void server::on_message(server* serv, 
+void Server::on_message(Server* serv, 
     std::weak_ptr<server_internal::session> session, 
     boost::asio::streambuf& read_buff) {
     // multi protocols
     std::shared_ptr<server_internal::session> session_ptr = session.lock();
-    internal_rpc_protocol::process_and_unpacked_request(serv, session, read_buff);
+    protocol_.process_and_unpacked_request(serv, session, read_buff);
 
 }
 

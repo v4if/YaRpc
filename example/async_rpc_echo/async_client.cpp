@@ -27,7 +27,7 @@ int main()
     yarpc::Client clt(options);
     yarpc::Channel channel(&clt, "127.0.0.1", 5678);
 
-    clt.start();
+    clt.Start();
 
     example::EchoService_Stub stub(&channel);
     example::EchoRequest request;
@@ -41,6 +41,6 @@ int main()
 
     stub.Echo(cntl, &request, response, done);
 
-    clt.wait();
+    clt.Wait();
     return 0;
 }

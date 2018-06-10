@@ -71,28 +71,34 @@ struct ServerOptions {
     int thread_group_sz;            // 处理post queue的线程数
     int uptime;                     // 运行时间
     std::size_t chunk_size;         // session 每次read的最大bytes
-    // protocol_template protocol;     // 协议
+    protocol_template protocol;     // 协议
 
     ServerOptions() :
         service_poll_sz(std::thread::hardware_concurrency()),
         thread_group_sz(1),
         uptime(-1),
-        chunk_size(1024)
+        chunk_size(1024), 
+        protocol{
+            internal_rpc_protocol::serialize_and_packed_request,
+            internal_rpc_protocol::process_and_unpacked_response,
+            internal_rpc_protocol::serialize_and_packed_response,
+            internal_rpc_protocol::process_and_unpacked_request,
+        }
         {}
 };
 
-class server : noncopyable
+class Server : noncopyable
 {
 public:
-    server(const ServerOptions options = ServerOptions());
+    Server(const ServerOptions options = ServerOptions());
 
-    void start(char const* host, char const* port); 
+    void Start(char const* host, char const* port); 
 
-    void start(boost::asio::ip::tcp::endpoint ep);
+    void Start(boost::asio::ip::tcp::endpoint ep);
 
-    void stop();
+    void Stop();
 
-    void wait();
+    void Wait();
 
     int RegisterService(std::shared_ptr<google::protobuf::Service> service);
 
@@ -103,7 +109,7 @@ public:
 private:
     void accept();
     void on_message(
-        server* serv, 
+        Server* serv, 
         std::weak_ptr<server_internal::session> session, 
         boost::asio::streambuf& read_buff);
 
@@ -122,7 +128,7 @@ private:
     bool want_close_;
 
     std::map<std::string, std::shared_ptr<google::protobuf::Service>> service_map_;
-    // protocol_template protocol;
+    protocol_template protocol_;
 };
 
 } // namespace 
