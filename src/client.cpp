@@ -63,7 +63,8 @@ void session::write_one_from_msg_queue(std::shared_ptr<message_op> msg_op) {
     msg_writing_q_.push_back(std::move(msg_op));
     
     if (is_connected_ && !in_progress) {
-        boost::asio::async_write(socket_, 
+        boost::asio::async_write(
+            socket_, 
             boost::asio::buffer(msg_writing_q_.front()->message, msg_writing_q_.front()->message.size()),
             [this](const boost::system::error_code& err, std::size_t bytes_transferred) {
                 write_until_handler(err, bytes_transferred);
@@ -84,7 +85,8 @@ void session::write_until_handler(const boost::system::error_code& err, std::siz
         msg_writing_q_.pop_front();
         
         if (is_connected_ && !msg_writing_q_.empty()) {
-            boost::asio::async_write(socket_, 
+            boost::asio::async_write(
+                socket_, 
                 boost::asio::buffer(msg_writing_q_.front()->message, msg_writing_q_.front()->message.size()),
                 [this](const boost::system::error_code& err, std::size_t bytes_transferred) {
                     write_until_handler(err, bytes_transferred);
@@ -101,21 +103,22 @@ void session::write_until_handler(const boost::system::error_code& err, std::siz
 
 void session::read() {
     boost::asio::streambuf::mutable_buffers_type mutable_buff = read_buff_.prepare(chunk_size_);
-    socket_.async_read_some(mutable_buff,     
-        [this, self = shared_from_this()](const boost::system::error_code& err, 
-            size_t bytes_transferred) {
-        if (!err && bytes_transferred > 0) {
-            read_buff_.commit(bytes_transferred);
+    socket_.async_read_some(
+        mutable_buff,     
+        [this, self = shared_from_this()](const boost::system::error_code& err, size_t bytes_transferred) {
+            if (!err && bytes_transferred > 0) {
+                read_buff_.commit(bytes_transferred);
 
-            on_message_(read_buff_);
-            
-            read();
-        } else {
-            if (!want_close_) { 
-                std::cout << "read failed: " << err.message() << "\n";
+                on_message_(read_buff_);
+                
+                read();
+            } else {
+                if (!want_close_) { 
+                    std::cout << "read failed: " << err.message() << "\n";
+                }
             }
         }
-    });
+    );
 }
 
 void session::start(std::shared_ptr<message_op> msg_op) {

@@ -129,7 +129,11 @@ public:
 
     void Stop();
 
-    bool post_message(char const* host, int port, std::shared_ptr<message_op> msg_op, google::protobuf::RpcController* controller);
+    bool post_message(
+        char const* host, 
+        int port, 
+        std::shared_ptr<message_op> msg_op, 
+        google::protobuf::RpcController* controller);
 
     void wait();
 

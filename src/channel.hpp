@@ -17,8 +17,11 @@ class Channel : public google::protobuf::RpcChannel {
 public:
     Channel(Client* clt, char const* host, int const port);
     virtual ~Channel(); 
-    virtual void CallMethod(const gMethodDescriptor *method, gController *controller, 
-        const gMessage *request, gMessage *response, gClosure *done);
+    virtual void CallMethod(const gMethodDescriptor *method, 
+        gController *controller, 
+        const gMessage *request, 
+        gMessage *response, 
+        gClosure *done);
 
 private:
     Client* client_;

@@ -16,8 +16,12 @@ Channel::Channel(Client* clt, char const* host, int const port) :
 
 Channel::~Channel() {}
 
-void Channel::CallMethod(const gMethodDescriptor *method, gController *controller, 
-        const gMessage *request, gMessage *response, gClosure *done) {
+void Channel::CallMethod(const gMethodDescriptor *method, 
+	gController *controller, 
+    const gMessage *request, 
+	gMessage *response, 
+	gClosure *done) {
+
 	Controller* cntl = static_cast<Controller*>(controller);
 
 	string buf_stream;
@@ -25,17 +29,21 @@ void Channel::CallMethod(const gMethodDescriptor *method, gController *controlle
 
 	// std::cout << "service full name: " << method->service()->full_name() << std::endl;
 	// std::cout << "service name: " << method->service()->name() << std::endl;
-    // std::cout << "method name: " << method->name() << std::endl;
+	// std::cout << "method name: " << method->name() << std::endl;
 	// std::cout << "typename: " << request->GetTypeName() << std::endl;
 
-	std::shared_ptr<message_op> msg_op(new message_op{std::move(buf_stream), 
-		response, 
-		[done]() {
-		// async rpc remote call 
-		if (done) {
-			done->Run();
+	std::shared_ptr<message_op> msg_op(
+		new message_op{
+			std::move(buf_stream), 
+			response, 
+			[done]() {
+				// async rpc remote call 
+				if (done) {
+					done->Run();
+				}
+			}
 		}
-	}});
+	);
 	cntl->push_pending_call_map(sequence_id, msg_op);
 	client_->post_message(host_, port_, msg_op, cntl);
 

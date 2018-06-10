@@ -102,7 +102,10 @@ public:
 
 private:
     void accept();
-    void on_message(server* serv, std::weak_ptr<server_internal::session> session, boost::asio::streambuf& read_buff);
+    void on_message(
+        server* serv, 
+        std::weak_ptr<server_internal::session> session, 
+        boost::asio::streambuf& read_buff);
 
 private:
     int const service_poll_sz_;         // io_service 数

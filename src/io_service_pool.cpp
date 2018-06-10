@@ -4,8 +4,8 @@
 
 namespace yarpc {
 
-io_service_pool::io_service_pool(std::size_t pool_size = std::thread::hardware_concurrency())
-    : next_io_service_(0)
+io_service_pool::io_service_pool(std::size_t pool_size = std::thread::hardware_concurrency()) :
+    next_io_service_(0)
 {
     pool_size = std::max(pool_size, std::size_t(1));
 

@@ -89,7 +89,8 @@ namespace internal_rpc_protocol {
                 ResponseMeta response_meta;
                 response_meta.ParseFromArray(data.c_str() + sizeof(meta_size) + sizeof(response_size), meta_size);
 
-                std::shared_ptr<message_op> msg_op = cntl->find_pending_call_by_sequenceid(response_meta.sequence_id());
+                std::shared_ptr<message_op> msg_op = 
+                    cntl->find_pending_call_by_sequenceid(response_meta.sequence_id());
                 msg_op->response->ParseFromArray(data.c_str() + sizeof(meta_size) + sizeof(response_size) + meta_size, 
                     response_size);
 
