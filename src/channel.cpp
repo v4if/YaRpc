@@ -18,7 +18,7 @@ Channel::~Channel() {}
 
 void Channel::CallMethod(const gMethodDescriptor *method, 
 	gController *controller, 
-    const gMessage *request, 
+	const gMessage *request, 
 	gMessage *response, 
 	gClosure *done) {
 
