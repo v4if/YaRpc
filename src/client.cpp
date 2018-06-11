@@ -30,6 +30,11 @@ void stats::print()
         (uptime_ * 1024 * 1024) << " MiB/s read throughput\n";
     std::cout << static_cast<double>(total_bytes_written_) /
         (uptime_ * 1024 * 1024) << " MiB/s write throughput\n";
+
+    std::cout << static_cast<double>(total_count_read_) /
+        (uptime_) << " counts/s read throughput\n";
+    std::cout << static_cast<double>(total_count_written_) /
+        (uptime_) << " counts/s written throughput\n";
 }
 
 // class yarpc::client_::session
@@ -229,12 +234,15 @@ void Client::Stop() {
     }
 
     io_work_.reset();
+    is_running_ = false;
 }
 
 bool Client::post_message(char const* host, 
     int port, 
     std::shared_ptr<message_op> msg_op,
     google::protobuf::RpcController* controller) {
+
+    if (!is_running_) return false;
 
     std::shared_ptr<client_internal::session> ss;
     if (!sessions_.empty()) {
@@ -301,6 +309,10 @@ void Client::on_message(google::protobuf::RpcController* controller, boost::asio
 
 protocol_template Client::protocol() {
     return protocol_;
+}
+
+bool Client::IsRun() {
+    return is_running_;
 }
 
 } // namespace 

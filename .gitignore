@@ -7,5 +7,6 @@ include/
 
 # Build file
 build/
+benchmark/**/build/
 example/**/build/
 test/**/build/

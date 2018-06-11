@@ -113,7 +113,7 @@ struct ClientOptions {
     protocol_template protocol;     // 协议
 
     ClientOptions() :
-        callback_thread_no(4),
+        callback_thread_no(std::thread::hardware_concurrency() + 2),
         keep_alive_time(-1),
         time_out(-1),
         uptime(-1),
@@ -147,6 +147,8 @@ public:
     void Wait();
 
     protocol_template protocol();
+
+    bool IsRun();
 
 private:
     void on_message(google::protobuf::RpcController* controller, boost::asio::streambuf& read_buff);

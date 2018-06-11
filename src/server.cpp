@@ -245,10 +245,9 @@ void Server::accept() {
 void Server::on_message(Server* serv, 
     std::weak_ptr<server_internal::session> session, 
     boost::asio::streambuf& read_buff) {
+        
     // multi protocols
-    std::shared_ptr<server_internal::session> session_ptr = session.lock();
     protocol_.process_and_unpacked_request(serv, session, read_buff);
-
 }
 
 } // namespace 

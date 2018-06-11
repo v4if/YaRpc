@@ -60,3 +60,6 @@ streambuf is not shrink
 
 
 message_size 最大32bit
+
+
+动态调整集群大小. 那么首先就要支持服务发现, 就是说当一个新的节点启动时,可以将自己的信息注册给master, 让master把它加入到集群里, 关闭之后也可以把自己从集群中删除
